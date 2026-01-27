@@ -1,0 +1,162 @@
+{
+  "name": "Fractional Hunter",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "trigger-node",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://fractionaljobs.io/sitemap.xml",
+        "options": {}
+      },
+      "id": "http-request-sitemap",
+      "name": "HTTP Request - Sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "xml-to-json",
+      "name": "XML to JSON",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst jobUrls = new Set();\n\nitems.forEach(item => {\n  const data = item.json;\n  \n  if (data.urlset && data.urlset.url) {\n    const urls = Array.isArray(data.urlset.url) ? data.urlset.url : [data.urlset.url];\n    \n    urls.forEach(urlEntry => {\n      if (urlEntry && urlEntry.loc) {\n        const url = urlEntry.loc;\n        if (url.includes('/jobs/') && !jobUrls.has(url)) {\n          jobUrls.add(url);\n        }\n      }\n    });\n  }\n});\n\nreturn Array.from(jobUrls).map(url => ({\n  json: { url }\n}));"
+      },
+      "id": "code-extract-urls",
+      "name": "Code - Extract URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "http-request-job-page",
+      "name": "HTTP Request - Job Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4",
+        "options": {
+          "systemMessage": "STEVEN'S APAC FILTER LOGIC:\n1. Role: Fractional/Part-Time Exec (10-20 hrs).\n2. Target: APAC/Australia/NZ time zones (to work Dallas Nights).\n3. Skills: Turnaround Sales, Customer Success, Retention.\n4. Exclude: \"US Hours Only\" or \"Full Time\".\n\nReturn ONLY JSON with url, match_enterprise_ae, match_apac, title_evidence, apac_evidence."
+        },
+        "prompt": "Analyze this job posting for Enterprise Account Executive with APAC requirements.\n\nJob URL: {{ $json.url }}\nJob Content: {{ $json.data }}\n\nReturn ONLY JSON:\n{\n  \"url\": \"{{ $json.url }}\",\n  \"match_enterprise_ae\": true/false,\n  \"match_apac\": true/false,\n  \"title_evidence\": \"short quote matching enterprise criteria\",\n  \"apac_evidence\": \"short quote matching APAC criteria\"\n}"
+      },
+      "id": "ai-analyze-job",
+      "name": "AI - Analyze Job",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Sitemap": {
+      "main": [
+        [
+          {
+            "node": "XML to JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML to JSON": {
+      "main": [
+        [
+          {
+            "node": "Code - Extract URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Extract URLs": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Job Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Job Page": {
+      "main": [
+        [
+          {
+            "node": "AI - Analyze Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2026-01-26T13:44:00.000Z",
+  "versionId": "1"
+}
